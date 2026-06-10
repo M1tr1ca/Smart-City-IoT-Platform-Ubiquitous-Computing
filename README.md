@@ -1,122 +1,123 @@
-# 🏙️ Smart City IoT Ecosystem
+# Smart City IoT Ecosystem
 
-[![Tech Stack](https://img.shields.io/badge/Stack-Java%20%7C%20C%2B%2B%20%7C%20Docker%20%7C%20Android-blue.svg)](#-tecnologías-y-herramientas)
-[![Architecture](https://img.shields.io/badge/Architecture-Event--Driven%20%7C%20Microservices-orange.svg)](#-arquitectura-del-sistema)
+[![Tech Stack](https://img.shields.io/badge/Stack-Java%20%7C%20C%2B%2B%20%7C%20Docker%20%7C%20Android-blue.svg)](#technologies-and-tools)
+[![Architecture](https://img.shields.io/badge/Architecture-Event--Driven%20%7C%20Microservices-orange.svg)](#system-architecture)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Ecosistema completo e industrial para la gestión y monitorización en tiempo real de una **Smart City** (Ciudad Inteligente). El sistema integra nodos sensores físicos (IoT Edge), un bróker de mensajería dirigido por eventos (MQTT), un servidor backend corporativo contenerizado (Java EE + Docker) y un cliente móvil nativo (Android) con mapas interactivos de Madrid.
+A complete, industrial-grade ecosystem for real-time management and monitoring of a **Smart City**. The system integrates physical sensor nodes (IoT Edge), an event-driven message broker (MQTT), a containerized enterprise backend server (Java EE + Docker), and a native mobile client (Android) featuring interactive maps of Madrid.
 
 ---
 
-## 🏗️ Arquitectura del Sistema
+## System Architecture
 
-El ecosistema sigue un modelo de comunicación híbrido de alta disponibilidad: **Publish-Subscribe (MQTT)** para la ingesta rápida y comandos en tiempo real, junto con una **API REST (HTTP)** para las consultas de datos históricos y configuración del sistema.
+The ecosystem follows a high-availability hybrid communication model: **Publish-Subscribe (MQTT)** for fast ingestion and real-time commands, alongside a **REST API (HTTP)** for historical data queries and system configuration.
 
-```
-┌────────────────────────────────────────────────────────┐
-│                   DISPOSITIVOS DE RED                  │
-│  ┌───────────────────────┐   ┌──────────────────────┐  │
-│  │   Estación IoT Edge   │   │  Pantallas/Semáforos │  │
-│  │   (ESP32 + BME280)    │   │ (Simulador/Actuador) │  │
-│  └───────────┬───────────┘   └──────────▲───────────┘  │
-└──────────────┼──────────────────────────┼──────────────┘
-               │ (Publica lecturas)       │ (Recibe comandos)
-               │ MQTT (Puerto 3000)       │ MQTT (Puerto 3000)
-               ▼                          │
- ┌────────────────────────────────────────┴──────────────┐
- │                  DOCKER INFRASTRUCTURE                │
- │  ┌──────────────────────────────────────────────────┐ │
- │  │        Mosquitto MQTT Broker (mqtt-broker)       │ │
- │  └──────────────────────────┬───────────────────────┘ │
- │                             │                         │
- │                             ▼ (Ingesta asíncrona)     │
- │  ┌──────────────────────────────────────────────────┐ │
- │  │      Tomcat Application Server (tomcat-server)   │ │
- │  │                [ Backend Java EE ]               │ │
- │  └──────┬───────────────────────────────────▲───────┘ │
- │         │ (Persistencia)                    │         │
- │         ▼                                   │         │
- │  ┌──────────────────────────┐               │         │
- │  │   PostgreSQL (base-datos)│               │         │
- │  └──────────────────────────┘               │         │
- └─────────────────────────────────────────────┼─────────┘
-                                               │ API REST / JSON
-                                               │ (Puerto 3002)
- ┌─────────────────────────────────────────────┴─────────┐
- │                   INTERFACES DE USUARIO               │
- │        ┌──────────────────────────────────────┐       │
- │        │    Aplicación Móvil Dashboard        │       │
- │        │  (Android Nativo + OpenStreetMap)    │       │
- │        └──────────────────────────────────────┘       │
- └───────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Devices["Network Devices"]
+        edge_node["IoT Edge Station<br/>(ESP32 + BME280)"]
+        actuators["Screens / Traffic Lights<br/>(Simulator/Actuator)"]
+    end
+
+    subgraph Infra["Docker Infrastructure"]
+        broker["Mosquitto MQTT Broker<br/>(mqtt-broker)"]
+        tomcat["Tomcat Application Server<br/>(tomcat-server)<br/>[Backend Java EE]"]
+        postgres[("PostgreSQL Database<br/>(base-datos)")]
+    end
+
+    subgraph UIs["User Interfaces"]
+        android["Mobile Dashboard App<br/>(Native Android + OpenStreetMap)"]
+    end
+
+    %% Flows
+    edge_node -->|"Publish readings - MQTT Port 3000"| broker
+    broker -->|"Receive commands - MQTT Port 3000"| actuators
+    broker -->|"Async ingestion"| tomcat
+    tomcat -->|"Persistence"| postgres
+    android -->|"API REST / JSON - HTTP Port 3002"| tomcat
+    android -.->|"Real-time update - MQTT Port 3000"| broker
 ```
 
 ---
 
-## 🗂️ Estructura del Repositorio
+## Repository Structure
 
-El proyecto se divide en tres componentes principales que aíslan cada capa tecnológica:
+The project is divided into three main components that isolate each technological layer:
 
-*   **[`iot-sensor-node`](./iot-sensor-node/)**: Código fuente en C++ para el microcontrolador **ESP32**.
-    *   Lecturas en tiempo real con sensor meteorológico **BME280** (Temperatura, Humedad, Presión).
-    *   Visualización de estados local mediante display de 7 segmentos de control directo por GPIO.
-    *   Planificación de tareas concurrentes mediante **FreeRTOS** para la gestión de hilos.
-    *   Publicación periódica y suscripción a tópicos de control mediante protocolo MQTT.
-*   **[`smart-city-backend`](./smart-city-backend/)**: Servidor central y contenedor de infraestructura.
-    *   Orquestado con **Docker Compose** que levanta en segundos:
-        *   Un bróker **Eclipse Mosquitto MQTT** (puerto `3000`).
-        *   Una base de datos **PostgreSQL 16** con esquemas de calles, sensores y lecturas relacionales.
-        *   Un servidor de aplicaciones **Apache Tomcat 10.1** corriendo una app corporativa **Java EE 11 / Servlet**.
-    *   Inclusión de un agente oyente (`MQTTSuscriber` vía Eclipse Paho) que captura lecturas persistentemente en la BD.
-*   **[`android-client-app`](./android-client-app/)**: Cuadro de mando móvil (Dashboard).
-    *   Desarrollado en Android Nativo (Kotlin/Java).
-    *   Integración de mapas interactivos de Madrid usando **OSMDroid (OpenStreetMap)**.
-    *   Conexión de red híbrida: suscripción MQTT directa al bróker para actualizaciones en tiempo real y consumo de la API REST mediante **Retrofit** para obtener datos históricos detallados.
-
----
-
-## 🛠️ Tecnologías y Herramientas
-
-*   **Lenguajes:** Java 21, C++ (Arduino/ESP-IDF), XML.
-*   **IoT & Hardware:** ESP32 DevKit, Sensor BME280 (I2C), Display 7-Segmentos, LEDs de Estado, Protocolo MQTT, FreeRTOS.
-*   **Backend & Servidores:** Jakarta EE 11 (Servlets, JNDI DataSources), Apache Tomcat 10.1, Maven, Eclipse Paho MQTT.
-*   **Base de Datos & DevOps:** PostgreSQL 16, Docker, Docker Compose, mosquitto-clients.
-*   **Mobile:** Android SDK, OSMDroid (Mapas), Retrofit 2 (Peticiones HTTP/REST), Gson.
+*   **[`iot-sensor-node`](./iot-sensor-node/)**: C++ source code for the **ESP32** microcontroller.
+    *   Real-time readings using the **BME280** weather sensor (Temperature, Humidity, Pressure).
+    *   Local status visualization via a 7-segment display directly controlled by GPIO.
+    *   Concurrent task scheduling using **FreeRTOS** for thread management.
+    *   Periodic publication and subscription to control topics using the MQTT protocol.
+*   **[`smart-city-backend`](./smart-city-backend/)**: Central server and infrastructure container.
+    *   Orchestrated with **Docker Compose** to spin up in seconds:
+        *   An **Eclipse Mosquitto MQTT** broker (port `3000`).
+        *   A **PostgreSQL 16** database with relational schemas for streets, sensors, and readings.
+        *   An **Apache Tomcat 10.1** application server running an enterprise **Java EE 11 / Servlet** app.
+    *   Includes a listener agent (`MQTTSubscriber` via Eclipse Paho) that persistently captures readings into the database.
+*   **[`android-client-app`](./android-client-app/)**: Mobile dashboard.
+    *   Developed in Native Android (Kotlin/Java).
+    *   Integration of interactive maps of Madrid using **OSMDroid (OpenStreetMap)**.
+    *   Hybrid network connection: direct MQTT subscription to the broker for real-time updates, and REST API consumption via **Retrofit** to retrieve detailed historical data.
 
 ---
 
-## ⚡ Guía de Inicio Rápido
+## Technologies and Tools
 
-### 1. Levantar la Infraestructura (Backend y DB)
-Asegúrate de tener instalado **Docker** y **Docker Desktop** iniciado (en Windows).
+*   **Languages:** Java 21, C++ (Arduino/ESP-IDF), XML.
+*   **IoT & Hardware:** ESP32 DevKit, BME280 Sensor (I2C), 7-Segment Display, Status LEDs, MQTT Protocol, FreeRTOS.
+*   **Backend & Servers:** Jakarta EE 11 (Servlets, JNDI DataSources), Apache Tomcat 10.1, Maven, Eclipse Paho MQTT.
+*   **Database & DevOps:** PostgreSQL 16, Docker, Docker Compose, mosquitto-clients.
+*   **Mobile:** Android SDK, OSMDroid (Maps), Retrofit 2 (HTTP/REST Requests), Gson.
+
+---
+
+## Quick Start Guide
+
+### 1. Spin up the Infrastructure (Backend and DB)
+Make sure you have **Docker** installed and **Docker Desktop** running (on Windows).
 
 ```bash
-# Entra al directorio del backend
+# Enter the backend directory
 cd smart-city-backend/ServerUbicua-master/ServerUbicua-master
 
-# Levanta los contenedores en segundo plano
+# Spin up the containers in the background
 docker-compose up -d
 ```
-Esto inicializará:
-1. El Bróker MQTT en `localhost:3000`.
-2. La Base de datos PostgreSQL en `localhost:5432`.
-3. El Servidor Tomcat en `localhost:3002/Server/`.
+This will initialize:
+1. The MQTT Broker at `localhost:3000`.
+2. The PostgreSQL database at `localhost:5432`.
+3. The Tomcat server at `localhost:3002/Server/`.
 
-### 2. Configurar y Desplegar el Nodo IoT (ESP32)
-1. Abre el directorio `iot-sensor-node` con tu IDE favorito (Arduino IDE o VS Code + PlatformIO).
-2. Ajusta las credenciales de tu WiFi local y la IP del Broker MQTT en `config.h`.
-3. Compila y flashea el código al **ESP32**.
+### 2. Configure and Deploy the IoT Node (ESP32)
+1. Open the `iot-sensor-node` directory with your favorite IDE (Arduino IDE or VS Code + PlatformIO).
+2. Adjust your local WiFi credentials and the MQTT Broker IP in `config.h`.
+3. Compile and flash the code to the **ESP32**.
 
-### 3. Ejecutar la Aplicación Android
-1. Abre la carpeta `android-client-app` en **Android Studio**.
-2. Modifica la dirección IP de tu servidor backend en la configuración de la conexión (cambia `10.0.2.2` si usas dispositivo físico real).
-3. Compila e instala la app en tu dispositivo o emulador.
-
----
-
-## 👥 Contribuidores
-*   **Juan Pérez Resa** - [GitHub](https://github.com/juanpresaa)
-*   **David Nicolás Mitrica** - [GitHub](https://github.com/M1tr1ca)
+### 3. Run the Android Application
+1. Open the `android-client-app` folder in **Android Studio**.
+2. Modify the IP address of your backend server in the connection configuration (change `10.0.2.2` if using a real physical device).
+3. Compile and install the app on your device or emulator.
 
 ---
-*Proyecto académico desarrollado para la asignatura de **Computación Ubicua** - Universidad de Alcalá (UAH).*
+
+## Contributors
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/juanprzzz">
+        <img src="https://github.com/juanprzzz.png" width="100px;" alt="Juan Pérez Resa"/><br />
+        <sub><b>Juan Pérez Resa</b></sub>
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/M1tr1ca">
+        <img src="https://github.com/M1tr1ca.png" width="100px;" alt="David Nicolás Mitrica"/><br />
+        <sub><b>David Nicolás Mitrica</b></sub>
+      </a>
+    </td>
+  </tr>
+</table>
+
+---
+*Academic project developed for the **Ubiquitous Computing** course - University of Alcalá (UAH).*
