@@ -120,4 +120,7 @@ This will initialize:
 </table>
 
 ---
-*Academic project developed for the **Ubiquitous Computing** course - University of Alcalá (UAH).*
+
+## Disclaimer
+
+This project was developed exclusively for **academic purposes** as a laboratory assignment for the **Ubiquitous Computing** (*Computación Ubicua*) course at the **University of Alcalá (UAH)**. It is not intended for production use. The authors make no warranties regarding the correctness, reliability, or security of the code.
